@@ -76,7 +76,7 @@ def process_assessment(tor_file, proposal_file, api_key):
 """
         st.info("Gemini 1.5 Pro กำลังอ่านและเปรียบเทียบเอกสารทั้งเล่ม (กรุณารอประมาณ 30–60 วินาที)...")
         response = client.models.generate_content(
-            model="gemini-1.5-pro",
+            model="gemini-2.5-pro",
             contents=[prompt_text, tor_gemini, prop_gemini],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
