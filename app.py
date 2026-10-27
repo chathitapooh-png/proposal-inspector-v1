@@ -251,23 +251,17 @@ def process_assessment(tor_file, proposal_file, api_key):
         return json.loads(response.text)
 
 # 5. ส่วนหัวหน้าเว็บ
-col_header, col_badge = st.columns([4, 1.2])
-with col_header:
-    st.markdown("""
-        <div style="display: flex; align-items: center; gap: 12px;">
-            <div style="background-color: #2563eb; padding: 10px; border-radius: 10px; display: inline-flex;">
-                <span style="font-size: 20px;">📄</span>
-            </div>
-            <div>
-                <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff;">Proposal Inspector (Google Workspace Edition)</h2>
-                <div style="color: #94a3b8; font-size: 13px; margin-top: 2px;">ระบบตรวจและประเมินข้อเสนอด้านเทคนิคด้วย Gemini AI</div>
-            </div>
+st.markdown("""
+    <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="background-color: #2563eb; padding: 10px; border-radius: 10px; display: inline-flex;">
+            <span style="font-size: 20px;">📄</span>
         </div>
-    """, unsafe_allow_html=True)
-with col_badge:
-    st.markdown('<div style="text-align: right; margin-top: 8px;"><span class="badge-status">Google Apps Script Serverless</span></div>', unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
+        <div>
+            <h2 style="margin: 0; font-size: 22px; font-weight: 700; color: #ffffff;">Proposal Inspector</h2>
+            <div style="color: #94a3b8; font-size: 13px; margin-top: 2px;">ระบบตรวจและประเมินข้อเสนอด้านเทคนิคด้วย Gemini AI</div>
+        </div>
+    </div>
+""", unsafe_allow_html=True)
 
 # 6. จัดการ Key เพื่อให้ปุ่มรีเฟรชล้างไฟล์ได้จริง
 if "uploader_key" not in st.session_state:
