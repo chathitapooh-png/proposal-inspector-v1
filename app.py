@@ -199,7 +199,7 @@ CANDIDATE_MODELS = [
     "gemini-3.5-flash-lite"
 ]
 
-# 5. ฟังก์ชันประมวลผลพร้อมระบบ Auto-Fallback & Retry
+# 5. ฟังก์ชันประมวลผลพร้อมระบบ Auto-Fallback, Retry และ Prompt ตรวจละเอียดระดับ Multimodal
 def process_assessment(tor_file, proposal_file, api_key):
     client = genai.Client(api_key=api_key)
     
@@ -220,24 +220,39 @@ def process_assessment(tor_file, proposal_file, api_key):
         prop_gemini = client.files.upload(file=prop_path)
 
         prompt_text = """
-คุณเป็นผู้เชี่ยวชาญด้านการจัดซื้อจัดจ้างและการตรวจประเมินข้อเสนอทางเทคนิค (Technical Proposal Inspector)
-หน้าที่ของคุณคือ: เปรียบเทียบข้อกำหนดในเอกสาร TOR กับเอกสาร Proposal เล่มข้อเสนออย่างละเอียดถี่ถ้วนแบบข้อต่อข้อ
+คุณคือผู้เชี่ยวชาญระดับสูงด้านการตรวจสอบและประเมินข้อเสนอทางเทคนิค (Senior Technical Proposal Auditor)
+ภารกิจหลัก: ตรวจสอบและเปรียบเทียบเอกสาร TOR กับ Proposal ทุกหน้า ทุกตัวอักษร และทุกภาพอย่างถี่ถ้วนแบบสมบูรณ์ (Exhaustive & Visual Multimodal Inspection)
 
-จงวิเคราะห์และตอบกลับในรูปแบบ JSON Schema ดังนี้เท่านั้น:
+แนวทางการตรวจสอบอย่างละเอียด:
+1. การตรวจจับเนื้อหาแบบ Multimodal (ข้อความและภาพ):
+   - อ่านและวิเคราะห์เนื้อหาทุกตัวอักษร ตาราง ข้อความเชิงอรรถ และภาคผนวกทุกหน้าของทั้งสองเล่ม
+   - ตรวจจับและอ่านข้อมูลที่ปรากฏในรูปภาพทั้งหมด เช่น แผนผังระบบ (Architecture/Workflow), ตารางสเปกทางเทคนิคที่เป็นรูปภาพ, แผนการดำเนินงาน (Gantt Chart / Action Plan), ภาพตัวอย่างผลงาน, ม็อกอัป (Mockup) และอินโฟกราฟิก
+   - นำข้อมูลที่เป็นภาพมาใช้อ้างอิงเป็นหลักฐานเชิงประจักษ์ร่วมกับข้อความบรรยายเสมอ
+
+2. การเปรียบเทียบข้อต่อข้อ (Item-by-Item Verification):
+   - แยกแยะข้อกำหนดของ TOR ออกมาให้ครบถ้วนทุกข้อ (ห้ามรวบรัดหรือข้ามข้อแม้แต่ข้อเดียว)
+   - ค้นหาหลักฐานจากเล่ม Proposal ทั้งที่ระบุเป็นข้อความหรือหลักฐานในรูปภาพ ว่าสอดคล้องกับ TOR นั้นๆ หรือไม่ พร้อมระบุเลขหน้า/ภาพที่อ้างอิง
+
+3. การจัดเกณฑ์สถานะความสอดคล้อง:
+   - "ครบถ้วน": มีข้อเสนอและหลักฐาน (ข้อความหรือภาพ) ตรงตามเกณฑ์ TOR ครบถ้วนชัดเจน
+   - "บางส่วน": มีการกล่าวถึงหรือมีภาพประกอบ แต่ขาดรายละเอียดเชิงลึก ขาดสเปกบางข้อ หรือไม่ครบตามจำนวนที่กำหนด
+   - "ขาดตก": ไม่พบการกล่าวถึง หรือไม่มีข้อเสนอทั้งในตัวอักษรและรูปภาพ
+
+ตอบกลับในรูปแบบ JSON Schema ดังนี้เท่านั้น:
 {
   "totalTorItems": <จำนวนข้อกำหนด TOR ทั้งหมดที่ตรวจพบ>,
   "compliantCount": <จำนวนข้อที่ ครบถ้วน (Compliant)>,
   "partialCount": <จำนวนข้อที่ บางส่วน (Partial)>,
   "nonCompliantCount": <จำนวนข้อที่ ขาดตก (Non-Compliant)>,
   "complianceScore": <คะแนนรวมเป็นตัวเลข % เช่น 92>,
-  "executiveSummary": "<บทสรุปผู้บริหาร สรุปภาพรวมความสอดคล้อง จุดเด่น และข้อสังเกต>",
+  "executiveSummary": "<บทสรุปผู้บริหาร สรุปภาพรวมความสอดคล้อง จุดเด่น และข้อสังเกตเชิงลึก>",
   "complianceTable": [
     {
       "id": 1,
-      "torItem": "<ระบุรายละเอียดข้อกำหนด TOR แต่ละข้อ>",
-      "proposalItem": "<ระบุข้อเสนอของ Proposal ที่ตรงกับข้อกำหนดนี้อย่างกระชับ>",
+      "torItem": "<ระบุข้อกำหนด TOR พร้อมเลขหน้า/หัวข้ออ้างอิง>",
+      "proposalItem": "<ระบุข้อเสนอของ Proposal พร้อมระบุหน้าหรือรูปภาพที่พบ>",
       "status": "ครบถ้วน" | "บางส่วน" | "ขาดตก",
-      "gapAnalysis": "<ระบุการวิเคราะห์ข้อดี ข้อสังเกต หรือ Gap Analysis และข้อเสนอแนะเชิงลึก>"
+      "gapAnalysis": "<วิเคราะห์จุดสอดคล้อง ข้อสังเกต หรือ Gap Analysis อิงตามข้อความและภาพประกอบ>"
     }
   ]
 }
@@ -249,7 +264,7 @@ def process_assessment(tor_file, proposal_file, api_key):
         for model_name in CANDIDATE_MODELS:
             for attempt in range(2):
                 try:
-                    status_box.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} (ครั้งที่ {attempt + 1})...")
+                    status_box.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} ตรวจสอบละเอียดทุกหน้าและรูปภาพ (ครั้งที่ {attempt + 1})...")
                     response = client.models.generate_content(
                         model=model_name,
                         contents=[prompt_text, tor_gemini, prop_gemini],
@@ -387,7 +402,6 @@ if "assessment_result" in st.session_state:
     items = data.get("complianceTable", [])
     
     if items:
-        # ประกอบแถวตารางแบบกระชับ ป้องกันปัญหา Markdown เข้าใจผิดว่าเป็น Code Block
         rows_html = ""
         for item in items:
             status_text = str(item.get("status", "")).strip()
