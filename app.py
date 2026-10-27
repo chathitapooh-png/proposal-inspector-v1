@@ -64,7 +64,6 @@ st.markdown("""
         border-radius: 12px;
         padding: 10px;
     }
-    /* ปรับแต่งปุ่มเริ่มประมวลผล */
     div[data-testid="stButton"] > button[kind="primary"] {
         background: linear-gradient(135deg, #6366f1 0%, #10b981 100%) !important;
         color: #ffffff !important;
@@ -74,7 +73,6 @@ st.markdown("""
         border: none !important;
         border-radius: 12px;
     }
-    /* ปรับแต่งปุ่มรีเฟรช */
     div[data-testid="stButton"] > button[kind="secondary"] {
         background-color: #1e293b !important;
         color: #cbd5e1 !important;
@@ -190,7 +188,11 @@ with col_badge:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 6. กล่องรับไฟล์
+# 6. จัดการ Key เพื่อให้รีเซ็ตไฟล์ได้จริง
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
+# 7. กล่องรับไฟล์
 st.markdown("""
     <div style="background: #111827; border: 1px solid #1f293d; border-radius: 18px 18px 0 0; padding: 22px 28px 0px 28px;">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -211,15 +213,25 @@ col_tor_box, col_prop_box = st.columns(2)
 
 with col_tor_box:
     st.markdown('<div class="dropzone-label"><span class="dot-cyan"></span> ไฟล์ TOR (ข้อกำหนด)</div>', unsafe_allow_html=True)
-    tor_file = st.file_uploader("อัปโหลดไฟล์ TOR", type=SUPPORTED_TYPES, key="tor_upload", label_visibility="collapsed")
+    tor_file = st.file_uploader(
+        "อัปโหลดไฟล์ TOR",
+        type=SUPPORTED_TYPES,
+        key=f"tor_upload_{st.session_state['uploader_key']}",
+        label_visibility="collapsed"
+    )
 
 with col_prop_box:
     st.markdown('<div class="dropzone-label"><span class="dot-green"></span> ไฟล์ Proposal (ข้อเสนอด้านเทคนิค)</div>', unsafe_allow_html=True)
-    prop_file = st.file_uploader("อัปโหลดไฟล์ Proposal", type=SUPPORTED_TYPES, key="prop_upload", label_visibility="collapsed")
+    prop_file = st.file_uploader(
+        "อัปโหลดไฟล์ Proposal",
+        type=SUPPORTED_TYPES,
+        key=f"prop_upload_{st.session_state['uploader_key']}",
+        label_visibility="collapsed"
+    )
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# ปุ่มควบคุม: ปุ่มรีเฟรช และ ปุ่มเริ่มประมวลผล
+# ปุ่มควบคุม
 b_col_space, b_col_refresh, b_col_start = st.columns([2.5, 0.8, 1.3])
 
 with b_col_refresh:
@@ -230,13 +242,14 @@ with b_col_start:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ฟังก์ชันการทำงานของปุ่มรีเฟรช
+# ฟังก์ชันรีเฟรชล้างทั้งผลลัพธ์และไฟล์ในกล่อง
 if reset_btn:
     if "assessment_result" in st.session_state:
         del st.session_state["assessment_result"]
+    st.session_state["uploader_key"] += 1
     st.rerun()
 
-# 7. กดประมวลผล
+# 8. กดประมวลผล
 if start_btn:
     if not gemini_key:
         st.error("⚠️ ไม่พบคีย์ GEMINI_API_KEY ใน Settings > Secrets กรุณาตั้งค่าก่อนเริ่มใช้งาน")
@@ -251,7 +264,7 @@ if start_btn:
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}")
 
-# 8. ส่วนแสดงผลลัพธ์
+# 9. ส่วนแสดงผลลัพธ์
 if "assessment_result" in st.session_state:
     data = st.session_state["assessment_result"]
     st.markdown("<br><hr style='border: 1px solid #1e293b;'><br>", unsafe_allow_html=True)
