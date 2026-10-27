@@ -92,11 +92,8 @@ def process_assessment(tor_file, proposal_file, api_key):
 
         return json.loads(response.text)
 
-# แถบด้านซ้ายสำหรับใส่ Gemini API Key
-with st.sidebar:
-    st.title("⚙️ ตั้งค่าระบบ")
-    default_key = os.environ.get("GEMINI_API_KEY", "")
-    gemini_key = st.text_input("Gemini API Key", value=default_key, type="password", placeholder="AIzaSy...")
+# ซ่อนแถบด้านซ้าย และดึง Gemini API Key จาก Secrets โดยตรง
+gemini_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", "")
 
 # ส่วนหัวของแอป
 st.title("🛡️ Proposal Inspector")
