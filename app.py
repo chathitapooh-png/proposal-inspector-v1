@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import io
+import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
 
@@ -15,7 +16,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. ตกแต่ง Dark Theme และปุ่ม
+# 2. ตกแต่ง Dark Theme และ Badge สถานะตามแบบตัวอย่าง
 st.markdown("""
 <style>
     .stApp {
@@ -101,6 +102,86 @@ st.markdown("""
     .metric-value {
         font-size: 26px;
         font-weight: 700;
+    }
+
+    /* ตารางผลการตรวจประเมิน */
+    .custom-table-container {
+        width: 100%;
+        overflow-x: auto;
+        background-color: #0b1120;
+        border: 1px solid #1e293b;
+        border-radius: 12px;
+        margin-bottom: 28px;
+    }
+    .custom-table {
+        width: 100%;
+        border-collapse: collapse;
+        color: #e2e8f0;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+    .custom-table th {
+        background-color: #0d1527;
+        color: #94a3b8;
+        font-weight: 600;
+        text-align: center !important;
+        padding: 14px 16px;
+        border-bottom: 1px solid #1e293b;
+        white-space: nowrap;
+    }
+    .custom-table td {
+        padding: 14px 16px;
+        border-bottom: 1px solid #172238;
+        vertical-align: middle;
+    }
+    .custom-table tr:hover {
+        background-color: #0f1a30;
+    }
+
+    /* Badge สถานะแบบ Pill Box ตามรูปตัวอย่าง */
+    .status-badge-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+    .badge-pill-compliant {
+        background-color: rgba(52, 211, 153, 0.12);
+        color: #34d399;
+        border: 1px solid #059669;
+        padding: 4px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        display: inline-block;
+        text-align: center;
+        min-width: 65px;
+    }
+    .badge-pill-partial {
+        background-color: rgba(251, 191, 36, 0.12);
+        color: #fbbf24;
+        border: 1px solid #d97706;
+        padding: 4px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        display: inline-block;
+        text-align: center;
+        min-width: 65px;
+    }
+    .badge-pill-noncompliant {
+        background-color: rgba(244, 63, 94, 0.14);
+        color: #fb7185;
+        border: 1px solid #be123c;
+        padding: 4px 14px;
+        border-radius: 8px;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+        display: inline-block;
+        text-align: center;
+        min-width: 65px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -188,7 +269,7 @@ with col_badge:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 6. จัดการ Key เพื่อให้รีเซ็ตไฟล์ได้จริง
+# 6. จัดการ Key เพื่อให้ปุ่มรีเฟรชล้างไฟล์ได้จริง
 if "uploader_key" not in st.session_state:
     st.session_state["uploader_key"] = 0
 
@@ -242,7 +323,7 @@ with b_col_start:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# ฟังก์ชันรีเฟรชล้างทั้งผลลัพธ์และไฟล์ในกล่อง
+# ฟังก์ชันรีเฟรช
 if reset_btn:
     if "assessment_result" in st.session_state:
         del st.session_state["assessment_result"]
@@ -287,9 +368,50 @@ if "assessment_result" in st.session_state:
     st.info(data.get("executiveSummary", "-"))
 
     st.markdown("#### 📋 ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)")
-    df = pd.DataFrame(data.get("complianceTable", []))
+    items = data.get("complianceTable", [])
+    
+    if items:
+        table_html = """
+        <div class="custom-table-container">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 30%;">ข้อกำหนด TOR</th>
+                        <th style="width: 30%;">ข้อเสนอ Proposal</th>
+                        <th style="width: 12%;">สถานะ</th>
+                        <th style="width: 23%;">Gap Analysis & ข้อเสนอแนะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for item in items:
+            status_text = str(item.get("status", "")).strip()
+            if status_text == "ครบถ้วน":
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-compliant">{status_text}</span></div>'
+            elif status_text == "บางส่วน":
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-partial">{status_text}</span></div>'
+            else:
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-noncompliant">{status_text}</span></div>'
 
-    if not df.empty:
+            table_html += f"""
+                <tr>
+                    <td style="text-align: center; color: #94a3b8; font-weight: 600;">{item.get('id', '')}</td>
+                    <td>{item.get('torItem', '')}</td>
+                    <td>{item.get('proposalItem', '')}</td>
+                    <td>{status_badge}</td>
+                    <td>{item.get('gapAnalysis', '')}</td>
+                </tr>
+            """
+        table_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        # เตรียมข้อมูลสำหรับดาวน์โหลดเป็น Excel
+        df = pd.DataFrame(items)
         column_mapping = {
             "id": "#",
             "torItem": "ข้อกำหนด TOR",
@@ -298,26 +420,20 @@ if "assessment_result" in st.session_state:
             "gapAnalysis": "Gap Analysis & ข้อเสนอแนะ"
         }
         df_display = df.rename(columns=column_mapping)
-        st.dataframe(df_display, use_container_width=True, hide_index=True)
-
-        col_exp1, col_exp2 = st.columns(2)
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
             df_display.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
-        
-        with col_exp1:
+
+        col_down1, col_down2 = st.columns(2)
+        with col_down1:
             st.download_button(
-                label="📥 ดาวน์โหลดเป็นไฟล์ Excel (.xlsx)",
+                label="📥 ดาวน์โหลดเป็นไฟล์ Excel",
                 data=excel_buffer.getvalue(),
                 file_name="Compliance_Evaluation_Report.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
-        with col_exp2:
-            st.download_button(
-                label="📥 ดาวน์โหลดเป็นไฟล์ CSV (.csv)",
-                data=("\ufeff" + df_display.to_csv(index=False)).encode("utf-8-sig"),
-                file_name="Compliance_Evaluation_Report.csv",
-                mime="text/csv",
-                use_container_width=True
-            )
+        with col_down2:
+            print_btn = st.button("🖨️ พิมพ์รายงาน / บันทึกเป็น PDF", use_container_width=True)
+            if print_btn:
+                components.html("<script>window.parent.print();</script>", height=0, width=0)
