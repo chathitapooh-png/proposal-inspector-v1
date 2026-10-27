@@ -7,7 +7,7 @@ import io
 from google import genai
 from google.genai import types
 
-# 1. การตั้งค่าหน้าจอ
+# 1. ตั้งค่าหน้าเว็บ
 st.set_page_config(
     page_title="Proposal Inspector",
     page_icon="📄",
@@ -15,32 +15,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. ปรับแต่งดีไซน์ CSS ให้ตรงตาม UI Mockup
+# 2. ตกแต่ง Dark Theme ตาม Mockup
 st.markdown("""
 <style>
-    /* พื้นหลังหลักและฟอนต์ */
     .stApp {
         background-color: #0b0f19;
         color: #f1f5f9;
         font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    
-    /* ซ่อนแถบด้านข้าง (Sidebar) อย่างสมบูรณ์ */
     [data-testid="stSidebar"], section[data-testid="stSidebarNav"] {
         display: none !important;
     }
-
-    /* กล่องการ์ดหลัก */
-    .main-card {
-        background: #111827;
-        border: 1px solid #1f293d;
-        border-radius: 18px;
-        padding: 24px 28px;
-        margin-top: 15px;
-        box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
-    }
-
-    /* Badge หัวเว็บ */
     .badge-status {
         background-color: rgba(16, 185, 129, 0.1);
         border: 1px solid rgba(16, 185, 129, 0.3);
@@ -51,8 +36,6 @@ st.markdown("""
         font-weight: 500;
         display: inline-block;
     }
-
-    /* กล่องอัปโหลดไฟล์จำลอง Dropzone */
     .dropzone-label {
         font-size: 14px;
         font-weight: 600;
@@ -75,23 +58,12 @@ st.markdown("""
         border-radius: 50%;
         display: inline-block;
     }
-
-    /* ตกแต่งกล่อง File Uploader ของ Streamlit */
     [data-testid="stFileUploader"] {
         background-color: #0d1321;
         border: 2px dashed #1e293b;
         border-radius: 12px;
         padding: 10px;
-        transition: border-color 0.2s ease;
     }
-    [data-testid="stFileUploader"]:hover {
-        border-color: #38bdf8;
-    }
-    [data-testid="stFileUploader"] section {
-        padding: 0px !important;
-    }
-
-    /* ปุ่มประมวลผลสไตล์ Gradient */
     div.stButton > button:first-child {
         background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
         color: #ffffff;
@@ -100,16 +72,7 @@ st.markdown("""
         padding: 12px 24px;
         border: none;
         border-radius: 12px;
-        box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
-        transition: all 0.3s ease;
     }
-    div.stButton > button:first-child:hover {
-        opacity: 0.95;
-        transform: translateY(-1px);
-        box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
-    }
-
-    /* การ์ดสรุปตัวชี้วัด */
     .metric-card {
         background-color: #111827;
         border: 1px solid #1f293d;
@@ -129,10 +92,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. ดึง API Key จาก Secrets โดยตรง (ป้องกันการมองเห็น)
+# 3. ดึง API Key
 gemini_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
-# 4. ฟังก์ชันประมวลผลการตรวจประเมิน
+# 4. ฟังก์ชันประมวลผล
 def process_assessment(tor_file, proposal_file, api_key):
     client = genai.Client(api_key=api_key)
     
@@ -193,7 +156,7 @@ def process_assessment(tor_file, proposal_file, api_key):
 
         return json.loads(response.text)
 
-# 5. Header ด้านบน
+# 5. ส่วนหัวของหน้าเว็บ
 col_header, col_badge = st.columns([4, 1.2])
 with col_header:
     st.markdown("""
@@ -212,7 +175,7 @@ with col_badge:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# 6. กล่องนำเข้าเอกสาร TOR และ Proposal
+# 6. กล่องรับไฟล์
 st.markdown("""
     <div style="background: #111827; border: 1px solid #1f293d; border-radius: 18px 18px 0 0; padding: 22px 28px 0px 28px;">
         <div style="display: flex; align-items: center; gap: 8px;">
@@ -225,16 +188,97 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# กำหนดนามสกุลไฟล์ที่รองรับทั้งหมดตาม Mockup
-SUPPORTED_FILE_TYPES = ["pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt", "txt"]
+SUPPORTED_TYPES = ["pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt", "txt"]
 
-with st.container():
-    st.markdown('<div style="background: #111827; border-left: 1px solid #1f293d; border-right: 1px solid #1f293d; border-bottom: 1px solid #1f293d; border-radius: 0 0 18px 18px; padding: 0 28px 24px 28px;">', unsafe_allow_html=True)
-    
-    col_tor_box, col_prop_box = st.columns(2)
-    
-    with col_tor_box:
-        st.markdown('<div class="dropzone-label"><span class="dot-cyan"></span> ไฟล์ TOR (ข้อกำหนด)</div>', unsafe_allow_html=True)
-        tor_file = st.file_uploader(
-            "คลิกเพื่อเลือกไฟล์ TOR",
-            type=SUPPORTED_FILE_TYPES,
+st.markdown('<div style="background: #111827; border-left: 1px solid #1f293d; border-right: 1px solid #1f293d; border-bottom: 1px solid #1f293d; border-radius: 0 0 18px 18px; padding: 0 28px 24px 28px;">', unsafe_allow_html=True)
+
+col_tor_box, col_prop_box = st.columns(2)
+
+with col_tor_box:
+    st.markdown('<div class="dropzone-label"><span class="dot-cyan"></span> ไฟล์ TOR (ข้อกำหนด)</div>', unsafe_allow_html=True)
+    tor_file = st.file_uploader("อัปโหลดไฟล์ TOR", type=SUPPORTED_TYPES, key="tor_upload", label_visibility="collapsed")
+
+with col_prop_box:
+    st.markdown('<div class="dropzone-label"><span class="dot-green"></span> ไฟล์ Proposal (ข้อเสนอด้านเทคนิค)</div>', unsafe_allow_html=True)
+    prop_file = st.file_uploader("อัปโหลดไฟล์ Proposal", type=SUPPORTED_TYPES, key="prop_upload", label_visibility="collapsed")
+
+st.markdown("<br>", unsafe_allow_html=True)
+
+btn_c1, btn_c2 = st.columns([3, 1.2])
+with btn_c2:
+    start_btn = st.button("✨ เริ่มประมวลผลด้วย Gemini AI", use_container_width=True)
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# 7. กดประมวลผล
+if start_btn:
+    if not gemini_key:
+        st.error("⚠️ ไม่พบคีย์ GEMINI_API_KEY ใน Settings > Secrets กรุณาตั้งค่าก่อนเริ่มใช้งาน")
+    elif not tor_file or not prop_file:
+        st.warning("⚠️ กรุณานำเข้าไฟล์ให้ครบทั้ง 2 เล่มก่อนเริ่มประมวลผล")
+    else:
+        try:
+            with st.spinner("ระบบกำลังเริ่มกระบวนการวิเคราะห์เอกสาร..."):
+                result_data = process_assessment(tor_file, prop_file, gemini_key)
+                st.session_state["assessment_result"] = result_data
+                st.success("ประมวลผลเสร็จสิ้นเรียบร้อยแล้ว!")
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}")
+
+# 8. แสดงผลลัพธ์
+if "assessment_result" in st.session_state:
+    data = st.session_state["assessment_result"]
+    st.markdown("<br><hr style='border: 1px solid #1e293b;'><br>", unsafe_allow_html=True)
+    st.markdown("### 📊 ผลการตรวจประเมิน (Assessment Results)")
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Compliance Score</div><div class="metric-value" style="color: #38bdf8;">{data.get("complianceScore", 0)}%</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card" style="border-left: 3px solid #3b82f6;"><div class="metric-title">จำนวนข้อกำหนด TOR</div><div class="metric-value" style="color: #60a5fa;">{data.get("totalTorItems", 0)}</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">ครบถ้วน (Compliant)</div><div class="metric-value" style="color: #34d399;">{data.get("compliantCount", 0)}</div></div>', unsafe_allow_html=True)
+    with c4:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">บางส่วน (Partial)</div><div class="metric-value" style="color: #fbbf24;">{data.get("partialCount", 0)}</div></div>', unsafe_allow_html=True)
+    with c5:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">ขาดตก (Non-Compliant)</div><div class="metric-value" style="color: #f87171;">{data.get("nonCompliantCount", 0)}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### 📝 บทสรุปผู้บริหาร (Executive Summary)")
+    st.info(data.get("executiveSummary", "-"))
+
+    st.markdown("#### 📋 ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)")
+    df = pd.DataFrame(data.get("complianceTable", []))
+
+    if not df.empty:
+        column_mapping = {
+            "id": "#",
+            "torItem": "ข้อกำหนด TOR",
+            "proposalItem": "ข้อเสนอ Proposal",
+            "status": "สถานะ",
+            "gapAnalysis": "Gap Analysis & ข้อเสนอแนะ"
+        }
+        df_display = df.rename(columns=column_mapping)
+        st.dataframe(df_display, use_container_width=True, hide_index=True)
+
+        col_exp1, col_exp2 = st.columns(2)
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df_display.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
+        
+        with col_exp1:
+            st.download_button(
+                label="📥 ดาวน์โหลดเป็นไฟล์ Excel (.xlsx)",
+                data=excel_buffer.getvalue(),
+                file_name="Compliance_Evaluation_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with col_exp2:
+            st.download_button(
+                label="📥 ดาวน์โหลดเป็นไฟล์ CSV (.csv)",
+                data=("\ufeff" + df_display.to_csv(index=False)).encode("utf-8-sig"),
+                file_name="Compliance_Evaluation_Report.csv",
+                mime="text/csv",
+                use_container_width=True
+            )
