@@ -15,7 +15,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. ตกแต่ง Dark Theme ตาม Mockup
+# 2. ตกแต่ง Dark Theme และปุ่ม
 st.markdown("""
 <style>
     .stApp {
@@ -64,14 +64,29 @@ st.markdown("""
         border-radius: 12px;
         padding: 10px;
     }
-    div.stButton > button:first-child {
-        background: linear-gradient(135deg, #6366f1 0%, #10b981 100%);
-        color: #ffffff;
+    /* ปรับแต่งปุ่มเริ่มประมวลผล */
+    div[data-testid="stButton"] > button[kind="primary"] {
+        background: linear-gradient(135deg, #6366f1 0%, #10b981 100%) !important;
+        color: #ffffff !important;
         font-weight: 600;
-        font-size: 16px;
-        padding: 12px 24px;
-        border: none;
+        font-size: 15px;
+        padding: 10px 20px;
+        border: none !important;
         border-radius: 12px;
+    }
+    /* ปรับแต่งปุ่มรีเฟรช */
+    div[data-testid="stButton"] > button[kind="secondary"] {
+        background-color: #1e293b !important;
+        color: #cbd5e1 !important;
+        border: 1px solid #334155 !important;
+        font-weight: 600;
+        font-size: 15px;
+        padding: 10px 16px;
+        border-radius: 12px;
+    }
+    div[data-testid="stButton"] > button[kind="secondary"]:hover {
+        background-color: #334155 !important;
+        color: #ffffff !important;
     }
     .metric-card {
         background-color: #111827;
@@ -92,7 +107,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. ดึง API Key
+# 3. ดึง API Key จาก Secrets
 gemini_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
 # 4. ฟังก์ชันประมวลผล
@@ -156,7 +171,7 @@ def process_assessment(tor_file, proposal_file, api_key):
 
         return json.loads(response.text)
 
-# 5. ส่วนหัวของหน้าเว็บ
+# 5. ส่วนหัวหน้าเว็บ
 col_header, col_badge = st.columns([4, 1.2])
 with col_header:
     st.markdown("""
@@ -204,11 +219,22 @@ with col_prop_box:
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-btn_c1, btn_c2 = st.columns([3, 1.2])
-with btn_c2:
-    start_btn = st.button("✨ เริ่มประมวลผลด้วย Gemini AI", use_container_width=True)
+# ปุ่มควบคุม: ปุ่มรีเฟรช และ ปุ่มเริ่มประมวลผล
+b_col_space, b_col_refresh, b_col_start = st.columns([2.5, 0.8, 1.3])
+
+with b_col_refresh:
+    reset_btn = st.button("🔄 รีเฟรช", use_container_width=True, type="secondary")
+
+with b_col_start:
+    start_btn = st.button("✨ เริ่มประมวลผลด้วย Gemini AI", use_container_width=True, type="primary")
 
 st.markdown('</div>', unsafe_allow_html=True)
+
+# ฟังก์ชันการทำงานของปุ่มรีเฟรช
+if reset_btn:
+    if "assessment_result" in st.session_state:
+        del st.session_state["assessment_result"]
+    st.rerun()
 
 # 7. กดประมวลผล
 if start_btn:
@@ -225,7 +251,7 @@ if start_btn:
         except Exception as e:
             st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}")
 
-# 8. แสดงผลลัพธ์
+# 8. ส่วนแสดงผลลัพธ์
 if "assessment_result" in st.session_state:
     data = st.session_state["assessment_result"]
     st.markdown("<br><hr style='border: 1px solid #1e293b;'><br>", unsafe_allow_html=True)
