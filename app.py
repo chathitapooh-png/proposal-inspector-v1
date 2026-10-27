@@ -17,7 +17,16 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. ตกแต่ง Dark Theme, Badge สถานะ และปุ่มต่างๆ
+# 2. จัดการ State สำหรับปุ่มรีเฟรช (ล้างไฟล์ได้ 100%)
+if "uploader_key" not in st.session_state:
+    st.session_state["uploader_key"] = 0
+
+def reset_all():
+    if "assessment_result" in st.session_state:
+        del st.session_state["assessment_result"]
+    st.session_state["uploader_key"] += 1
+
+# 3. สไตล์ CSS ตกแต่ง Dark Theme
 st.markdown("""
 <style>
     .stApp {
@@ -56,28 +65,35 @@ st.markdown("""
         border-radius: 12px;
         padding: 10px;
     }
+
+    /* สไตล์ปุ่มประมวลผล (Gradient สวยงาม) */
     div[data-testid="stButton"] > button[kind="primary"] {
         background: linear-gradient(135deg, #6366f1 0%, #10b981 100%) !important;
         color: #ffffff !important;
-        font-weight: 600;
-        font-size: 15px;
-        padding: 10px 20px;
+        font-weight: 600 !important;
+        font-size: 15px !important;
+        padding: 10px 20px !important;
         border: none !important;
-        border-radius: 12px;
+        border-radius: 12px !important;
+        width: 100% !important;
     }
+
+    /* สไตล์ปุ่มรีเฟรช */
     div[data-testid="stButton"] > button[kind="secondary"] {
         background-color: #1e293b !important;
         color: #cbd5e1 !important;
         border: 1px solid #334155 !important;
-        font-weight: 600;
-        font-size: 15px;
-        padding: 10px 16px;
-        border-radius: 12px;
+        font-weight: 600 !important;
+        font-size: 15px !important;
+        padding: 10px 16px !important;
+        border-radius: 12px !important;
+        width: 100% !important;
     }
     div[data-testid="stButton"] > button[kind="secondary"]:hover {
         background-color: #334155 !important;
         color: #ffffff !important;
     }
+
     .metric-card {
         background-color: #111827;
         border: 1px solid #1f293d;
@@ -95,7 +111,7 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* ตารางผลการตรวจประเมิน */
+    /* ตารางผลลัพธ์ */
     .custom-table-container {
         width: 100%;
         overflow-x: auto;
@@ -129,7 +145,6 @@ st.markdown("""
         background-color: #0f1a30;
     }
 
-    /* Badge สถานะแบบ Pill Box */
     .status-badge-container {
         display: flex;
         justify-content: center;
@@ -174,10 +189,10 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 3. ดึง API Key จาก Secrets
+# 4. ดึง API Key จาก Secrets
 gemini_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
-# รายชื่อโมเดลสำรองเรียงตามลำดับความเสถียร (Auto-Fallback)
+# รายชื่อโมเดล Auto-Fallback
 CANDIDATE_MODELS = [
     "gemini-2.5-flash",
     "gemini-2.0-flash",
@@ -185,7 +200,7 @@ CANDIDATE_MODELS = [
     "gemini-2.0-flash-lite"
 ]
 
-# 4. ฟังก์ชันประมวลผลพร้อมระบบ Auto-Fallback
+# 5. ฟังก์ชันประมวลผล
 def process_assessment(tor_file, proposal_file, api_key):
     client = genai.Client(api_key=api_key)
     
@@ -230,11 +245,11 @@ def process_assessment(tor_file, proposal_file, api_key):
 """
         response = None
         last_error = None
-        status_placeholder = st.empty()
+        status_box = st.empty()
 
         for model_name in CANDIDATE_MODELS:
             try:
-                status_placeholder.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} วิเคราะห์และเปรียบเทียบ...")
+                status_box.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} วิเคราะห์และเปรียบเทียบ...")
                 response = client.models.generate_content(
                     model=model_name,
                     contents=[prompt_text, tor_gemini, prop_gemini],
@@ -244,11 +259,11 @@ def process_assessment(tor_file, proposal_file, api_key):
                     )
                 )
                 if response and response.text:
-                    status_placeholder.empty()
+                    status_box.empty()
                     break
             except Exception as err:
                 last_error = err
-                status_placeholder.warning(f"⚠️ โมเดล {model_name} มีผู้ใช้งานหนาแน่น (ติดข้อผิดพลาด) -> กำลังสลับไปใช้โมเดลถัดไป...")
+                status_box.warning(f"⚠️ โมเดล {model_name} มีผู้ใช้งานหนาแน่น -> สลับไปใช้โมเดลถัดไป...")
                 time.sleep(1.5)
 
         try:
@@ -262,7 +277,7 @@ def process_assessment(tor_file, proposal_file, api_key):
 
         return json.loads(response.text)
 
-# 5. ส่วนหัวหน้าเว็บ
+# 6. ส่วนหัวหน้าเว็บ
 st.markdown("""
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
         <div style="background-color: #2563eb; padding: 10px; border-radius: 10px; display: inline-flex;">
@@ -275,18 +290,14 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 6. จัดการ Key รีเฟรชไฟล์
-if "uploader_key" not in st.session_state:
-    st.session_state["uploader_key"] = 0
-
-# 7. กล่องรับไฟล์
+# 7. กล่องนำเข้าเอกสาร
 st.markdown("""
-    <div style="background: #111827; border: 1px solid #1f293d; border-radius: 18px 18px 0 0; padding: 22px 28px 0px 28px;">
+    <div style="background: #111827; border: 1px solid #1f293d; border-radius: 18px 18px 0 0; padding: 22px 28px 10px 28px;">
         <div style="display: flex; align-items: center; gap: 8px;">
             <span style="font-size: 20px;">📁</span>
             <span style="font-size: 18px; font-weight: 700; color: #ffffff;">นำเข้าเอกสาร TOR และ Proposal</span>
         </div>
-        <div style="color: #94a3b8; font-size: 13px; margin-top: 4px; margin-bottom: 16px;">
+        <div style="color: #94a3b8; font-size: 13px; margin-top: 4px; margin-bottom: 12px;">
             รองรับไฟล์ PDF, Word (.docx/.doc), Excel (.xlsx/.xls), PPT (.pptx/.ppt) และ Text (.txt)
         </div>
     </div>
@@ -294,35 +305,145 @@ st.markdown("""
 
 SUPPORTED_TYPES = ["pdf", "docx", "doc", "xlsx", "xls", "pptx", "ppt", "txt"]
 
-st.markdown('<div style="background: #111827; border-left: 1px solid #1f293d; border-right: 1px solid #1f293d; border-bottom: 1px solid #1f293d; border-radius: 0 0 18px 18px; padding: 0 28px 24px 28px;">', unsafe_allow_html=True)
+# ใช้ Streamlit Container ห่อหุ้มกล่องและปุ่ม
+main_upload_container = st.container()
 
-col_tor_box, col_prop_box = st.columns(2)
+with main_upload_container:
+    col_tor_box, col_prop_box = st.columns(2)
 
-with col_tor_box:
-    st.markdown('<div class="dropzone-label"><span class="dot-cyan"></span> ไฟล์ TOR (ข้อกำหนด)</div>', unsafe_allow_html=True)
-    tor_file = st.file_uploader(
-        "อัปโหลดไฟล์ TOR",
-        type=SUPPORTED_TYPES,
-        key=f"tor_upload_{st.session_state['uploader_key']}",
-        label_visibility="collapsed"
-    )
+    with col_tor_box:
+        st.markdown('<div class="dropzone-label"><span class="dot-cyan"></span> ไฟล์ TOR (ข้อกำหนด)</div>', unsafe_allow_html=True)
+        tor_file = st.file_uploader(
+            "อัปโหลดไฟล์ TOR",
+            type=SUPPORTED_TYPES,
+            key=f"tor_file_{st.session_state['uploader_key']}",
+            label_visibility="collapsed"
+        )
 
-with col_prop_box:
-    st.markdown('<div class="dropzone-label"><span class="dot-green"></span> ไฟล์ Proposal (ข้อเสนอด้านเทคนิค)</div>', unsafe_allow_html=True)
-    prop_file = st.file_uploader(
-        "อัปโหลดไฟล์ Proposal",
-        type=SUPPORTED_TYPES,
-        key=f"prop_upload_{st.session_state['uploader_key']}",
-        label_visibility="collapsed"
-    )
+    with col_prop_box:
+        st.markdown('<div class="dropzone-label"><span class="dot-green"></span> ไฟล์ Proposal (ข้อเสนอด้านเทคนิค)</div>', unsafe_allow_html=True)
+        prop_file = st.file_uploader(
+            "อัปโหลดไฟล์ Proposal",
+            type=SUPPORTED_TYPES,
+            key=f"prop_file_{st.session_state['uploader_key']}",
+            label_visibility="collapsed"
+        )
 
-st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 
-# ปุ่มควบคุม
-b_col_space, b_col_refresh, b_col_start = st.columns([2.5, 0.8, 1.3])
+    # ปุ่มอยู่แถวเดียวกันชัดเจน
+    col_empty, col_btn_refresh, col_btn_start = st.columns([2.2, 0.9, 1.4])
+    with col_btn_refresh:
+        st.button("🔄 รีเฟรช", use_container_width=True, type="secondary", on_click=reset_all)
 
-with b_col_refresh:
-    reset_btn = st.button("🔄 รีเฟรช", use_container_width=True, type="secondary")
+    with col_btn_start:
+        start_btn = st.button("✨ เริ่มประมวลผลด้วย Gemini AI", use_container_width=True, type="primary")
 
-with b_col_start:
-    start_btn = st
+st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
+
+# 8. Action เริ่มประมวลผล
+if start_btn:
+    if not gemini_key:
+        st.error("⚠️ ไม่พบคีย์ GEMINI_API_KEY ใน Settings > Secrets กรุณาตั้งค่าก่อนเริ่มใช้งาน")
+    elif not tor_file or not prop_file:
+        st.warning("⚠️ กรุณานำเข้าไฟล์ให้ครบทั้ง 2 เล่มก่อนเริ่มประมวลผล")
+    else:
+        try:
+            with st.spinner("ระบบกำลังเตรียมความพร้อมของเอกสาร..."):
+                result_data = process_assessment(tor_file, prop_file, gemini_key)
+                st.session_state["assessment_result"] = result_data
+                st.success("ประมวลผลเสร็จสิ้นเรียบร้อยแล้ว!")
+        except Exception as e:
+            st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}")
+
+# 9. ส่วนแสดงผลการตรวจประเมิน
+if "assessment_result" in st.session_state:
+    data = st.session_state["assessment_result"]
+    st.markdown("<hr style='border: 1px solid #1e293b; margin: 30px 0;'>", unsafe_allow_html=True)
+    st.markdown("### 📊 ผลการตรวจประเมิน (Assessment Results)")
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Compliance Score</div><div class="metric-value" style="color: #38bdf8;">{data.get("complianceScore", 0)}%</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card" style="border-left: 3px solid #3b82f6;"><div class="metric-title">จำนวนข้อกำหนด TOR</div><div class="metric-value" style="color: #60a5fa;">{data.get("totalTorItems", 0)}</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">ครบถ้วน (Compliant)</div><div class="metric-value" style="color: #34d399;">{data.get("compliantCount", 0)}</div></div>', unsafe_allow_html=True)
+    with c4:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">บางส่วน (Partial)</div><div class="metric-value" style="color: #fbbf24;">{data.get("partialCount", 0)}</div></div>', unsafe_allow_html=True)
+    with c5:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">ขาดตก (Non-Compliant)</div><div class="metric-value" style="color: #f87171;">{data.get("nonCompliantCount", 0)}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### 📝 บทสรุปผู้บริหาร (Executive Summary)")
+    st.info(data.get("executiveSummary", "-"))
+
+    st.markdown("#### 📋 ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)")
+    items = data.get("complianceTable", [])
+    
+    if items:
+        table_html = """
+        <div class="custom-table-container">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 30%;">ข้อกำหนด TOR</th>
+                        <th style="width: 30%;">ข้อเสนอ Proposal</th>
+                        <th style="width: 12%;">สถานะ</th>
+                        <th style="width: 23%;">Gap Analysis & ข้อเสนอแนะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for item in items:
+            status_text = str(item.get("status", "")).strip()
+            if status_text == "ครบถ้วน":
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-compliant">{status_text}</span></div>'
+            elif status_text == "บางส่วน":
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-partial">{status_text}</span></div>'
+            else:
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-noncompliant">{status_text}</span></div>'
+
+            table_html += f"""
+                <tr>
+                    <td style="text-align: center; color: #94a3b8; font-weight: 600;">{item.get('id', '')}</td>
+                    <td>{item.get('torItem', '')}</td>
+                    <td>{item.get('proposalItem', '')}</td>
+                    <td>{status_badge}</td>
+                    <td>{item.get('gapAnalysis', '')}</td>
+                </tr>
+            """
+        table_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        df = pd.DataFrame(items)
+        column_mapping = {
+            "id": "#",
+            "torItem": "ข้อกำหนด TOR",
+            "proposalItem": "ข้อเสนอ Proposal",
+            "status": "สถานะ",
+            "gapAnalysis": "Gap Analysis & ข้อเสนอแนะ"
+        }
+        df_display = df.rename(columns=column_mapping)
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df_display.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
+
+        col_down1, col_down2 = st.columns(2)
+        with col_down1:
+            st.download_button(
+                label="📥 ดาวน์โหลดเป็นไฟล์ Excel",
+                data=excel_buffer.getvalue(),
+                file_name="Compliance_Evaluation_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with col_down2:
+            print_btn = st.button("🖨️ พิมพ์รายงาน / บันทึกเป็น PDF", use_container_width=True)
+            if print_btn:
+                components.html("<script>window.parent.print();</script>", height=0, width=0)
