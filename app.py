@@ -26,7 +26,7 @@ def reset_all():
         del st.session_state["assessment_result"]
     st.session_state["uploader_key"] += 1
 
-# 3. สไตล์ CSS ตกแต่ง Dark Theme และ Badge สถานะ
+# 3. สไตล์ CSS ตกแต่ง Dark Theme, ตาราง และ Feedback Cards
 st.markdown("""
 <style>
     .stApp {
@@ -111,7 +111,7 @@ st.markdown("""
         font-weight: 700;
     }
 
-    /* ตารางผลลัพธ์ */
+    /* ตารางผลลัพธ์ทั่วไป */
     .custom-table-container {
         width: 100%;
         overflow-x: auto;
@@ -187,6 +187,53 @@ st.markdown("""
         text-align: center;
         min-width: 65px;
     }
+
+    /* Feedback Tag Pill */
+    .feedback-tag-delete {
+        background-color: rgba(239, 68, 68, 0.15);
+        color: #f87171;
+        border: 1px solid #b91c1c;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .feedback-tag-edit {
+        background-color: rgba(245, 158, 11, 0.15);
+        color: #fbbf24;
+        border: 1px solid #b45309;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .feedback-tag-format {
+        background-color: rgba(59, 130, 246, 0.15);
+        color: #60a5fa;
+        border: 1px solid #1d4ed8;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .feedback-tag-add {
+        background-color: rgba(16, 185, 129, 0.15);
+        color: #34d399;
+        border: 1px solid #047857;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+
+    .feedback-card {
+        background-color: #111827;
+        border: 1px solid #1f293d;
+        border-left: 4px solid #f59e0b;
+        border-radius: 12px;
+        padding: 16px 20px;
+        margin-bottom: 20px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -199,8 +246,8 @@ CANDIDATE_MODELS = [
     "gemini-3.5-flash-lite"
 ]
 
-# 5. ฟังก์ชันประมวลผลพร้อมระบบ Auto-Fallback, Retry และ Prompt ตรวจละเอียดระดับ Multimodal
-def process_assessment(tor_file, proposal_file, api_key):
+# 5. ฟังก์ชันประมวลผลพร้อมระบบ Auto-Fallback, Multimodal OCR และ Feedback Extractor
+def process_assessment(tor_file, proposal_file, api_key, status_placeholder):
     client = genai.Client(api_key=api_key)
     
     with tempfile.TemporaryDirectory() as temp_dir:
@@ -215,56 +262,54 @@ def process_assessment(tor_file, proposal_file, api_key):
         with open(prop_path, "wb") as f:
             f.write(proposal_file.getbuffer())
 
-        st.info("กำลังอัปโหลดเอกสารเข้าสู่ระบบประมวลผล...")
+        # แจ้งสถานะผ่าน placeholder
+        status_placeholder.info("กำลังอัปโหลดเอกสารเข้าสู่ระบบประมวลผล...")
         tor_gemini = client.files.upload(file=tor_path)
         prop_gemini = client.files.upload(file=prop_path)
 
         prompt_text = """
-คุณคือผู้เชี่ยวชาญระดับสูงด้านการตรวจสอบและประเมินข้อเสนอทางเทคนิค (Senior Technical Proposal Auditor)
-ภารกิจหลัก: ตรวจสอบและเปรียบเทียบเอกสาร TOR กับ Proposal ทุกหน้า ทุกตัวอักษร และทุกภาพอย่างถี่ถ้วนแบบสมบูรณ์ (Exhaustive & Visual Multimodal Inspection)
+คุณคือผู้เชี่ยวชาญระดับสูงด้านการตรวจประเมินข้อเสนอทางเทคนิค และบรรณาธิการตรวจข้อเสนอ (Senior Technical Proposal Auditor & Proofreader)
+ภารกิจ: 
+1. เปรียบเทียบความสอดคล้องตามข้อกำหนด TOR กับ Proposal แบบข้อต่อข้อ (Item-by-item Compliance)
+2. สแกนอ่านทุกหน้า ทุกตัวอักษร และรูปภาพ/แผนผัง/ตารางในเล่ม Proposal อย่างละเอียด เพื่อจัดทำ "Feedback / ข้อเสนอแนะการปรับปรุงข้อความและรูปภาพในเล่ม Proposal" ให้มีความถูกต้อง สมบูรณ์ พร้อมยื่นประมูลงานภาครัฐจริง (เหมือนสไตล์ตรวจแก้ดราฟต์ Proposal ตัวอย่าง เช่น การตัดข้อความที่ไม่ควรมี, การแก้คำผิด, การเรียงเลขข้อ, การปรับรูปและตาราง)
 
-แนวทางการตรวจสอบอย่างละเอียด:
-1. การตรวจจับเนื้อหาแบบ Multimodal (ข้อความและภาพ):
-   - อ่านและวิเคราะห์เนื้อหาทุกตัวอักษร ตาราง ข้อความเชิงอรรถ และภาคผนวกทุกหน้าของทั้งสองเล่ม
-   - ตรวจจับและอ่านข้อมูลที่ปรากฏในรูปภาพทั้งหมด เช่น แผนผังระบบ (Architecture/Workflow), ตารางสเปกทางเทคนิคที่เป็นรูปภาพ, แผนการดำเนินงาน (Gantt Chart / Action Plan), ภาพตัวอย่างผลงาน, ม็อกอัป (Mockup) และอินโฟกราฟิก
-   - นำข้อมูลที่เป็นภาพมาใช้อ้างอิงเป็นหลักฐานเชิงประจักษ์ร่วมกับข้อความบรรยายเสมอ
-
-2. การเปรียบเทียบข้อต่อข้อ (Item-by-Item Verification):
-   - แยกแยะข้อกำหนดของ TOR ออกมาให้ครบถ้วนทุกข้อ (ห้ามรวบรัดหรือข้ามข้อแม้แต่ข้อเดียว)
-   - ค้นหาหลักฐานจากเล่ม Proposal ทั้งที่ระบุเป็นข้อความหรือหลักฐานในรูปภาพ ว่าสอดคล้องกับ TOR นั้นๆ หรือไม่ พร้อมระบุเลขหน้า/ภาพที่อ้างอิง
-
-3. การจัดเกณฑ์สถานะความสอดคล้อง:
-   - "ครบถ้วน": มีข้อเสนอและหลักฐาน (ข้อความหรือภาพ) ตรงตามเกณฑ์ TOR ครบถ้วนชัดเจน
-   - "บางส่วน": มีการกล่าวถึงหรือมีภาพประกอบ แต่ขาดรายละเอียดเชิงลึก ขาดสเปกบางข้อ หรือไม่ครบตามจำนวนที่กำหนด
-   - "ขาดตก": ไม่พบการกล่าวถึง หรือไม่มีข้อเสนอทั้งในตัวอักษรและรูปภาพ
-
-ตอบกลับในรูปแบบ JSON Schema ดังนี้เท่านั้น:
+วิเคราะห์และตอบกลับในรูปแบบ JSON Schema ดังนี้เท่านั้น:
 {
   "totalTorItems": <จำนวนข้อกำหนด TOR ทั้งหมดที่ตรวจพบ>,
-  "compliantCount": <จำนวนข้อที่ ครบถ้วน (Compliant)>,
-  "partialCount": <จำนวนข้อที่ บางส่วน (Partial)>,
-  "nonCompliantCount": <จำนวนข้อที่ ขาดตก (Non-Compliant)>,
+  "compliantCount": <จำนวนข้อที่ ครบถ้วน>,
+  "partialCount": <จำนวนข้อที่ บางส่วน>,
+  "nonCompliantCount": <จำนวนข้อที่ ขาดตก>,
   "complianceScore": <คะแนนรวมเป็นตัวเลข % เช่น 92>,
   "executiveSummary": "<บทสรุปผู้บริหาร สรุปภาพรวมความสอดคล้อง จุดเด่น และข้อสังเกตเชิงลึก>",
   "complianceTable": [
     {
       "id": 1,
-      "torItem": "<ระบุข้อกำหนด TOR พร้อมเลขหน้า/หัวข้ออ้างอิง>",
-      "proposalItem": "<ระบุข้อเสนอของ Proposal พร้อมระบุหน้าหรือรูปภาพที่พบ>",
+      "torItem": "<ข้อกำหนด TOR พร้อมเลขหน้า/หัวข้ออ้างอิง>",
+      "proposalItem": "<ข้อเสนอของ Proposal พร้อมระบุหน้าหรือรูปภาพที่พบ>",
       "status": "ครบถ้วน" | "บางส่วน" | "ขาดตก",
-      "gapAnalysis": "<วิเคราะห์จุดสอดคล้อง ข้อสังเกต หรือ Gap Analysis อิงตามข้อความและภาพประกอบ>"
+      "gapAnalysis": "<วิเคราะห์จุดสอดคล้อง จุดสังเกต หรือ Gap Analysis อิงตามข้อความและภาพประกอบ>"
+    }
+  ],
+  "editorialFeedbackSummary": [
+    "<สรุป Feedback หลักๆ ในภาพรวม เช่น เรียงลำดับเลขข้อให้ถูกต้อง, ตัดข้อความ บริษัทฯ ยินดีดำเนินงานตาม TOR กำหนด ออกทุกหน้า, ตรวจสอบเว้นวรรค, ใส่ข้อมูลตารางสื่อจริง, ตรวจรับรองผลงาน>"
+  ],
+  "pageLevelFeedback": [
+    {
+      "pageOrSection": "<ระบุเลขหน้า หรือ หัวข้อในเล่ม Proposal เช่น หน้า 1, หน้า 4 หรือ ข้อ 2.2.1.2>",
+      "type": "ตัดออก" | "แก้ไขข้อความ" | "ปรับปรุงตาราง/รูปภาพ" | "เว้นวรรค/จัดหน้า",
+      "originalContent": "<ข้อความหรือองค์ประกอบเดิมที่ตรวจพบในหน้า เช่น 'บริษัทฯ ยินดีดำเนินงานตาม TOR กำหนด' หรือ รูปภาพสื่อป้ายเก่า>",
+      "commentAndRecommendation": "<คำแนะนำการแก้ไขให้ถูกต้อง เช่น 'ตัดข้อความนี้ออกทุกหน้า', 'แก้ชื่อโครงการให้ตรงกับประกาศล่าสุด', 'เว้นวรรคคำว่า ทั้งนี้ และ อนึ่ง ไว้บรรทัดถัดไปตาม TOR'>"
     }
   ]
 }
 """
         response = None
         last_error = None
-        status_box = st.empty()
 
         for model_name in CANDIDATE_MODELS:
             for attempt in range(2):
                 try:
-                    status_box.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} ตรวจสอบละเอียดทุกหน้าและรูปภาพ (ครั้งที่ {attempt + 1})...")
+                    status_placeholder.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} ตรวจสอบละเอียดทุกหน้าและรูปภาพ (ครั้งที่ {attempt + 1})...")
                     response = client.models.generate_content(
                         model=model_name,
                         contents=[prompt_text, tor_gemini, prop_gemini],
@@ -274,13 +319,12 @@ def process_assessment(tor_file, proposal_file, api_key):
                         )
                     )
                     if response and response.text:
-                        status_box.empty()
                         break
                 except Exception as err:
                     last_error = err
                     err_msg = str(err)
                     if "503" in err_msg or "UNAVAILABLE" in err_msg:
-                        status_box.warning(f"⚠️ โมเดล {model_name} ทราฟฟิกหนาแน่นชั่วคราว กำลังรอสักครู่แล้วลองใหม่...")
+                        status_placeholder.warning(f"⚠️ โมเดล {model_name} ทราฟฟิกหนาแน่นชั่วคราว กำลังรอสักครู่แล้วลองใหม่...")
                         time.sleep(3)
                     else:
                         break
@@ -293,6 +337,9 @@ def process_assessment(tor_file, proposal_file, api_key):
             client.files.delete(name=prop_gemini.name)
         except Exception:
             pass
+
+        # เคลียร์กล่องแจ้งเตือนทั้งหมดออกจากหน้าเว็บเมื่อทำงานเสร็จ
+        status_placeholder.empty()
 
         if not response or not response.text:
             raise Exception(f"ระบบไม่สามารถประมวลผลได้เนื่องจากทุกโมเดลสำรองมีผู้ใช้งานหนาแน่น: {str(last_error)}")
@@ -361,6 +408,9 @@ with main_upload_container:
 
 st.markdown("<div style='margin-bottom: 25px;'></div>", unsafe_allow_html=True)
 
+# กล่องแจ้งสถานะแบบไดนามิก (สามารถสั่งล้างทิ้งได้เมื่อเสร็จสิ้น)
+status_placeholder = st.empty()
+
 # 8. Action เริ่มประมวลผล
 if start_btn:
     if not gemini_key:
@@ -369,11 +419,12 @@ if start_btn:
         st.warning("⚠️ กรุณานำเข้าไฟล์ให้ครบทั้ง 2 เล่มก่อนเริ่มประมวลผล")
     else:
         try:
-            with st.spinner("ระบบกำลังเตรียมความพร้อมของเอกสาร..."):
-                result_data = process_assessment(tor_file, prop_file, gemini_key)
+            with st.spinner("ระบบกำลังอ่านและวิเคราะห์เนื้อหาทั้งตัวอักษรและรูปภาพทุกหน้า..."):
+                result_data = process_assessment(tor_file, prop_file, gemini_key, status_placeholder)
                 st.session_state["assessment_result"] = result_data
                 st.success("ประมวลผลเสร็จสิ้นเรียบร้อยแล้ว!")
         except Exception as e:
+            status_placeholder.empty()
             st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}")
 
 # 9. ส่วนแสดงผลการตรวจประเมิน
@@ -398,6 +449,68 @@ if "assessment_result" in st.session_state:
     st.markdown("#### 📝 บทสรุปผู้บริหาร (Executive Summary)")
     st.info(data.get("executiveSummary", "-"))
 
+    # ส่วน Feedback / ข้อเสนอแนะการปรับแก้ความถูกต้องของเล่ม Proposal
+    fb_summary = data.get("editorialFeedbackSummary", [])
+    page_feedback = data.get("pageLevelFeedback", [])
+
+    if fb_summary or page_feedback:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("#### 💡 ข้อเสนอแนะและจุดที่ต้องปรับแก้ในเล่ม Proposal (Editorial Feedback)")
+        
+        # สรุป Feedback หลักเป็น Checklist
+        if fb_summary:
+            feedback_bullets = "".join([f"<li style='margin-bottom: 6px;'>{fb}</li>" for fb in fb_summary])
+            st.markdown(f"""
+                <div class="feedback-card">
+                    <div style="font-weight: 700; color: #fbbf24; margin-bottom: 10px; font-size: 15px;">
+                        📌 สรุปรายการ Feedback หลักที่ต้องแก้ไขในเล่ม (Key Editorial Review):
+                    </div>
+                    <ul style="color: #cbd5e1; font-size: 14px; line-height: 1.7; padding-left: 20px; margin: 0;">
+                        {feedback_bullets}
+                    </ul>
+                </div>
+            """, unsafe_allow_html=True)
+
+        # ตารางเจาะลึกการตรวจแก้รายหน้า / รายจุด
+        if page_feedback:
+            fb_rows_html = ""
+            for fb in page_feedback:
+                fb_type = fb.get("type", "แก้ไขข้อความ")
+                if fb_type == "ตัดออก":
+                    tag_html = f'<span class="feedback-tag-delete">{fb_type}</span>'
+                elif fb_type == "ปรับปรุงตาราง/รูปภาพ":
+                    tag_html = f'<span class="feedback-tag-format">{fb_type}</span>'
+                elif fb_type == "เว้นวรรค/จัดหน้า":
+                    tag_html = f'<span class="feedback-tag-add">{fb_type}</span>'
+                else:
+                    tag_html = f'<span class="feedback-tag-edit">{fb_type}</span>'
+
+                fb_rows_html += (
+                    f'<tr>'
+                    f'<td style="text-align: center; color: #38bdf8; font-weight: 600;">{fb.get("pageOrSection", "-")}</td>'
+                    f'<td style="text-align: center;">{tag_html}</td>'
+                    f'<td style="color: #94a3b8; font-family: monospace; font-size: 13px;">{fb.get("originalContent", "-")}</td>'
+                    f'<td style="color: #f1f5f9; font-weight: 500;">{fb.get("commentAndRecommendation", "-")}</td>'
+                    f'</tr>'
+                )
+
+            fb_table_html = (
+                '<div class="custom-table-container">'
+                '<table class="custom-table">'
+                '<thead><tr>'
+                '<th style="width: 15%;">หน้า / หัวข้อ</th>'
+                '<th style="width: 15%;">ประเภทการแก้ไข</th>'
+                '<th style="width: 35%;">ข้อความ / องค์ประกอบเดิมที่พบ</th>'
+                '<th style="width: 35%;">ข้อเสนอแนะและจุดที่ต้องปรับแก้</th>'
+                '</tr></thead>'
+                f'<tbody>{fb_rows_html}</tbody>'
+                '</table>'
+                '</div>'
+            )
+            st.markdown(fb_table_html, unsafe_allow_html=True)
+
+    # ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)
+    st.markdown("<br>", unsafe_allow_html=True)
     st.markdown("#### 📋 ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)")
     items = data.get("complianceTable", [])
     
@@ -438,25 +551,41 @@ if "assessment_result" in st.session_state:
         )
         st.markdown(table_html, unsafe_allow_html=True)
 
-        df = pd.DataFrame(items)
-        column_mapping = {
+        # เตรียม Export ไฟล์ Excel (แยกชีทรายงาน Compliance และชีท Feedback)
+        df_comp = pd.DataFrame(items)
+        column_mapping_comp = {
             "id": "#",
             "torItem": "ข้อกำหนด TOR",
             "proposalItem": "ข้อเสนอ Proposal",
             "status": "สถานะ",
             "gapAnalysis": "Gap Analysis & ข้อเสนอแนะ"
         }
-        df_display = df.rename(columns=column_mapping)
+        df_display_comp = df_comp.rename(columns=column_mapping_comp)
+
+        df_fb = pd.DataFrame(page_feedback)
+        if not df_fb.empty:
+            column_mapping_fb = {
+                "pageOrSection": "หน้า/หัวข้อ",
+                "type": "ประเภทการแก้ไข",
+                "originalContent": "ข้อความ/องค์ประกอบเดิม",
+                "commentAndRecommendation": "ข้อเสนอแนะและจุดปรับแก้"
+            }
+            df_display_fb = df_fb.rename(columns=column_mapping_fb)
+        else:
+            df_display_fb = pd.DataFrame()
+
         excel_buffer = io.BytesIO()
         with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df_display.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
+            df_display_comp.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
+            if not df_display_fb.empty:
+                df_display_fb.to_excel(writer, index=False, sheet_name='Editorial_Feedback')
 
         col_down1, col_down2 = st.columns(2)
         with col_down1:
             st.download_button(
                 label="📥 ดาวน์โหลดเป็นไฟล์ Excel",
                 data=excel_buffer.getvalue(),
-                file_name="Compliance_Evaluation_Report.xlsx",
+                file_name="Compliance_and_Feedback_Report.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 use_container_width=True
             )
