@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 import io
+import time
 import streamlit.components.v1 as components
 from google import genai
 from google.genai import types
@@ -16,7 +17,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. ตกแต่ง Dark Theme และ Badge สถานะตามแบบตัวอย่าง
+# 2. ตกแต่ง Dark Theme, Badge สถานะ และปุ่มต่างๆ
 st.markdown("""
 <style>
     .stApp {
@@ -26,16 +27,6 @@ st.markdown("""
     }
     [data-testid="stSidebar"], section[data-testid="stSidebarNav"] {
         display: none !important;
-    }
-    .badge-status {
-        background-color: rgba(16, 185, 129, 0.1);
-        border: 1px solid rgba(16, 185, 129, 0.3);
-        color: #34d399;
-        font-size: 13px;
-        padding: 6px 14px;
-        border-radius: 9999px;
-        font-weight: 500;
-        display: inline-block;
     }
     .dropzone-label {
         font-size: 14px;
@@ -138,7 +129,7 @@ st.markdown("""
         background-color: #0f1a30;
     }
 
-    /* Badge สถานะแบบ Pill Box ตามรูปตัวอย่าง */
+    /* Badge สถานะแบบ Pill Box */
     .status-badge-container {
         display: flex;
         justify-content: center;
@@ -152,7 +143,6 @@ st.markdown("""
         border-radius: 8px;
         font-size: 13px;
         font-weight: 600;
-        letter-spacing: 0.3px;
         display: inline-block;
         text-align: center;
         min-width: 65px;
@@ -165,7 +155,6 @@ st.markdown("""
         border-radius: 8px;
         font-size: 13px;
         font-weight: 600;
-        letter-spacing: 0.3px;
         display: inline-block;
         text-align: center;
         min-width: 65px;
@@ -178,7 +167,6 @@ st.markdown("""
         border-radius: 8px;
         font-size: 13px;
         font-weight: 600;
-        letter-spacing: 0.3px;
         display: inline-block;
         text-align: center;
         min-width: 65px;
@@ -189,7 +177,15 @@ st.markdown("""
 # 3. ดึง API Key จาก Secrets
 gemini_key = st.secrets.get("GEMINI_API_KEY", os.environ.get("GEMINI_API_KEY", ""))
 
-# 4. ฟังก์ชันประมวลผล
+# รายชื่อโมเดลสำรองเรียงตามลำดับความเสถียร (Auto-Fallback)
+CANDIDATE_MODELS = [
+    "gemini-2.5-flash",
+    "gemini-2.0-flash",
+    "gemini-3.8-flash",
+    "gemini-2.0-flash-lite"
+]
+
+# 4. ฟังก์ชันประมวลผลพร้อมระบบ Auto-Fallback
 def process_assessment(tor_file, proposal_file, api_key):
     client = genai.Client(api_key=api_key)
     
@@ -232,27 +228,43 @@ def process_assessment(tor_file, proposal_file, api_key):
   ]
 }
 """
-        st.info("Gemini AI กำลังอ่านและเปรียบเทียบเอกสารทั้งหมด...")
-        response = client.models.generate_content(
-            model="gemini-3.8-flash",
-            contents=[prompt_text, tor_gemini, prop_gemini],
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.1
-            )
-        )
-        
+        response = None
+        last_error = None
+        status_placeholder = st.empty()
+
+        for model_name in CANDIDATE_MODELS:
+            try:
+                status_placeholder.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} วิเคราะห์และเปรียบเทียบ...")
+                response = client.models.generate_content(
+                    model=model_name,
+                    contents=[prompt_text, tor_gemini, prop_gemini],
+                    config=types.GenerateContentConfig(
+                        response_mime_type="application/json",
+                        temperature=0.1
+                    )
+                )
+                if response and response.text:
+                    status_placeholder.empty()
+                    break
+            except Exception as err:
+                last_error = err
+                status_placeholder.warning(f"⚠️ โมเดล {model_name} มีผู้ใช้งานหนาแน่น (ติดข้อผิดพลาด) -> กำลังสลับไปใช้โมเดลถัดไป...")
+                time.sleep(1.5)
+
         try:
             client.files.delete(name=tor_gemini.name)
             client.files.delete(name=prop_gemini.name)
         except Exception:
             pass
 
+        if not response or not response.text:
+            raise Exception(f"ระบบไม่สามารถประมวลผลได้เนื่องจากทุกโมเดลสำรองมีผู้ใช้งานหนาแน่น: {str(last_error)}")
+
         return json.loads(response.text)
 
 # 5. ส่วนหัวหน้าเว็บ
 st.markdown("""
-    <div style="display: flex; align-items: center; gap: 12px;">
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 20px;">
         <div style="background-color: #2563eb; padding: 10px; border-radius: 10px; display: inline-flex;">
             <span style="font-size: 20px;">📄</span>
         </div>
@@ -263,7 +275,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# 6. จัดการ Key เพื่อให้ปุ่มรีเฟรชล้างไฟล์ได้จริง
+# 6. จัดการ Key รีเฟรชไฟล์
 if "uploader_key" not in st.session_state:
     st.session_state["uploader_key"] = 0
 
@@ -313,121 +325,4 @@ with b_col_refresh:
     reset_btn = st.button("🔄 รีเฟรช", use_container_width=True, type="secondary")
 
 with b_col_start:
-    start_btn = st.button("✨ เริ่มประมวลผลด้วย Gemini AI", use_container_width=True, type="primary")
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ฟังก์ชันรีเฟรช
-if reset_btn:
-    if "assessment_result" in st.session_state:
-        del st.session_state["assessment_result"]
-    st.session_state["uploader_key"] += 1
-    st.rerun()
-
-# 8. กดประมวลผล
-if start_btn:
-    if not gemini_key:
-        st.error("⚠️ ไม่พบคีย์ GEMINI_API_KEY ใน Settings > Secrets กรุณาตั้งค่าก่อนเริ่มใช้งาน")
-    elif not tor_file or not prop_file:
-        st.warning("⚠️ กรุณานำเข้าไฟล์ให้ครบทั้ง 2 เล่มก่อนเริ่มประมวลผล")
-    else:
-        try:
-            with st.spinner("ระบบกำลังเริ่มกระบวนการวิเคราะห์เอกสาร..."):
-                result_data = process_assessment(tor_file, prop_file, gemini_key)
-                st.session_state["assessment_result"] = result_data
-                st.success("ประมวลผลเสร็จสิ้นเรียบร้อยแล้ว!")
-        except Exception as e:
-            st.error(f"เกิดข้อผิดพลาดในการประมวลผล: {str(e)}")
-
-# 9. ส่วนแสดงผลลัพธ์
-if "assessment_result" in st.session_state:
-    data = st.session_state["assessment_result"]
-    st.markdown("<br><hr style='border: 1px solid #1e293b;'><br>", unsafe_allow_html=True)
-    st.markdown("### 📊 ผลการตรวจประเมิน (Assessment Results)")
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    with c1:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">Compliance Score</div><div class="metric-value" style="color: #38bdf8;">{data.get("complianceScore", 0)}%</div></div>', unsafe_allow_html=True)
-    with c2:
-        st.markdown(f'<div class="metric-card" style="border-left: 3px solid #3b82f6;"><div class="metric-title">จำนวนข้อกำหนด TOR</div><div class="metric-value" style="color: #60a5fa;">{data.get("totalTorItems", 0)}</div></div>', unsafe_allow_html=True)
-    with c3:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">ครบถ้วน (Compliant)</div><div class="metric-value" style="color: #34d399;">{data.get("compliantCount", 0)}</div></div>', unsafe_allow_html=True)
-    with c4:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">บางส่วน (Partial)</div><div class="metric-value" style="color: #fbbf24;">{data.get("partialCount", 0)}</div></div>', unsafe_allow_html=True)
-    with c5:
-        st.markdown(f'<div class="metric-card"><div class="metric-title">ขาดตก (Non-Compliant)</div><div class="metric-value" style="color: #f87171;">{data.get("nonCompliantCount", 0)}</div></div>', unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### 📝 บทสรุปผู้บริหาร (Executive Summary)")
-    st.info(data.get("executiveSummary", "-"))
-
-    st.markdown("#### 📋 ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)")
-    items = data.get("complianceTable", [])
-    
-    if items:
-        table_html = """
-        <div class="custom-table-container">
-            <table class="custom-table">
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">#</th>
-                        <th style="width: 30%;">ข้อกำหนด TOR</th>
-                        <th style="width: 30%;">ข้อเสนอ Proposal</th>
-                        <th style="width: 12%;">สถานะ</th>
-                        <th style="width: 23%;">Gap Analysis & ข้อเสนอแนะ</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """
-        for item in items:
-            status_text = str(item.get("status", "")).strip()
-            if status_text == "ครบถ้วน":
-                status_badge = f'<div class="status-badge-container"><span class="badge-pill-compliant">{status_text}</span></div>'
-            elif status_text == "บางส่วน":
-                status_badge = f'<div class="status-badge-container"><span class="badge-pill-partial">{status_text}</span></div>'
-            else:
-                status_badge = f'<div class="status-badge-container"><span class="badge-pill-noncompliant">{status_text}</span></div>'
-
-            table_html += f"""
-                <tr>
-                    <td style="text-align: center; color: #94a3b8; font-weight: 600;">{item.get('id', '')}</td>
-                    <td>{item.get('torItem', '')}</td>
-                    <td>{item.get('proposalItem', '')}</td>
-                    <td>{status_badge}</td>
-                    <td>{item.get('gapAnalysis', '')}</td>
-                </tr>
-            """
-        table_html += """
-                </tbody>
-            </table>
-        </div>
-        """
-        st.markdown(table_html, unsafe_allow_html=True)
-
-        # เตรียมข้อมูลสำหรับดาวน์โหลดเป็น Excel
-        df = pd.DataFrame(items)
-        column_mapping = {
-            "id": "#",
-            "torItem": "ข้อกำหนด TOR",
-            "proposalItem": "ข้อเสนอ Proposal",
-            "status": "สถานะ",
-            "gapAnalysis": "Gap Analysis & ข้อเสนอแนะ"
-        }
-        df_display = df.rename(columns=column_mapping)
-        excel_buffer = io.BytesIO()
-        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
-            df_display.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
-
-        col_down1, col_down2 = st.columns(2)
-        with col_down1:
-            st.download_button(
-                label="📥 ดาวน์โหลดเป็นไฟล์ Excel",
-                data=excel_buffer.getvalue(),
-                file_name="Compliance_Evaluation_Report.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                use_container_width=True
-            )
-        with col_down2:
-            print_btn = st.button("🖨️ พิมพ์รายงาน / บันทึกเป็น PDF", use_container_width=True)
-            if print_btn:
-                components.html("<script>window.parent.print();</script>", height=0, width=0)
+    start_btn = st
