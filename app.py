@@ -247,7 +247,6 @@ def process_assessment(tor_file, proposal_file, api_key):
         status_box = st.empty()
 
         for model_name in CANDIDATE_MODELS:
-            # ให้โอกาสลองซ้ำกรณีเจอ 503 หรือคิวหนาแน่นชั่วคราว
             for attempt in range(2):
                 try:
                     status_box.info(f"⚡ กำลังส่งเอกสารให้โมเดล: {model_name} (ครั้งที่ {attempt + 1})...")
@@ -338,7 +337,6 @@ with main_upload_container:
 
     st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
 
-    # ปุ่มแถวควบคุม
     col_empty, col_btn_refresh, col_btn_start = st.columns([2.2, 0.9, 1.4])
     with col_btn_refresh:
         st.button("🔄 รีเฟรช", use_container_width=True, type="secondary", on_click=reset_all)
@@ -371,4 +369,86 @@ if "assessment_result" in st.session_state:
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1:
-        st.markdown(f
+        st.markdown(f'<div class="metric-card"><div class="metric-title">Compliance Score</div><div class="metric-value" style="color: #38bdf8;">{data.get("complianceScore", 0)}%</div></div>', unsafe_allow_html=True)
+    with c2:
+        st.markdown(f'<div class="metric-card" style="border-left: 3px solid #3b82f6;"><div class="metric-title">จำนวนข้อกำหนด TOR</div><div class="metric-value" style="color: #60a5fa;">{data.get("totalTorItems", 0)}</div></div>', unsafe_allow_html=True)
+    with c3:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">ครบถ้วน (Compliant)</div><div class="metric-value" style="color: #34d399;">{data.get("compliantCount", 0)}</div></div>', unsafe_allow_html=True)
+    with c4:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">บางส่วน (Partial)</div><div class="metric-value" style="color: #fbbf24;">{data.get("partialCount", 0)}</div></div>', unsafe_allow_html=True)
+    with c5:
+        st.markdown(f'<div class="metric-card"><div class="metric-title">ขาดตก (Non-Compliant)</div><div class="metric-value" style="color: #f87171;">{data.get("nonCompliantCount", 0)}</div></div>', unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("#### 📝 บทสรุปผู้บริหาร (Executive Summary)")
+    st.info(data.get("executiveSummary", "-"))
+
+    st.markdown("#### 📋 ตารางเปรียบเทียบข้อต่อข้อ (Compliance Table)")
+    items = data.get("complianceTable", [])
+    
+    if items:
+        table_html = """
+        <div class="custom-table-container">
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th style="width: 5%;">#</th>
+                        <th style="width: 30%;">ข้อกำหนด TOR</th>
+                        <th style="width: 30%;">ข้อเสนอ Proposal</th>
+                        <th style="width: 12%;">สถานะ</th>
+                        <th style="width: 23%;">Gap Analysis & ข้อเสนอแนะ</th>
+                    </tr>
+                </thead>
+                <tbody>
+        """
+        for item in items:
+            status_text = str(item.get("status", "")).strip()
+            if status_text == "ครบถ้วน":
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-compliant">{status_text}</span></div>'
+            elif status_text == "บางส่วน":
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-partial">{status_text}</span></div>'
+            else:
+                status_badge = f'<div class="status-badge-container"><span class="badge-pill-noncompliant">{status_text}</span></div>'
+
+            table_html += f"""
+                <tr>
+                    <td style="text-align: center; color: #94a3b8; font-weight: 600;">{item.get('id', '')}</td>
+                    <td>{item.get('torItem', '')}</td>
+                    <td>{item.get('proposalItem', '')}</td>
+                    <td>{status_badge}</td>
+                    <td>{item.get('gapAnalysis', '')}</td>
+                </tr>
+            """
+        table_html += """
+                </tbody>
+            </table>
+        </div>
+        """
+        st.markdown(table_html, unsafe_allow_html=True)
+
+        df = pd.DataFrame(items)
+        column_mapping = {
+            "id": "#",
+            "torItem": "ข้อกำหนด TOR",
+            "proposalItem": "ข้อเสนอ Proposal",
+            "status": "สถานะ",
+            "gapAnalysis": "Gap Analysis & ข้อเสนอแนะ"
+        }
+        df_display = df.rename(columns=column_mapping)
+        excel_buffer = io.BytesIO()
+        with pd.ExcelWriter(excel_buffer, engine='openpyxl') as writer:
+            df_display.to_excel(writer, index=False, sheet_name='Compliance_Evaluation')
+
+        col_down1, col_down2 = st.columns(2)
+        with col_down1:
+            st.download_button(
+                label="📥 ดาวน์โหลดเป็นไฟล์ Excel",
+                data=excel_buffer.getvalue(),
+                file_name="Compliance_Evaluation_Report.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True
+            )
+        with col_down2:
+            print_btn = st.button("🖨️ พิมพ์รายงาน / บันทึกเป็น PDF", use_container_width=True)
+            if print_btn:
+                components.html("<script>window.parent.print();</script>", height=0, width=0)
