@@ -387,20 +387,8 @@ if "assessment_result" in st.session_state:
     items = data.get("complianceTable", [])
     
     if items:
-        table_html = """
-        <div class="custom-table-container">
-            <table class="custom-table">
-                <thead>
-                    <tr>
-                        <th style="width: 5%;">#</th>
-                        <th style="width: 30%;">ข้อกำหนด TOR</th>
-                        <th style="width: 30%;">ข้อเสนอ Proposal</th>
-                        <th style="width: 12%;">สถานะ</th>
-                        <th style="width: 23%;">Gap Analysis & ข้อเสนอแนะ</th>
-                    </tr>
-                </thead>
-                <tbody>
-        """
+        # ประกอบแถวตารางแบบกระชับ ป้องกันปัญหา Markdown เข้าใจผิดว่าเป็น Code Block
+        rows_html = ""
         for item in items:
             status_text = str(item.get("status", "")).strip()
             if status_text == "ครบถ้วน":
@@ -410,20 +398,30 @@ if "assessment_result" in st.session_state:
             else:
                 status_badge = f'<div class="status-badge-container"><span class="badge-pill-noncompliant">{status_text}</span></div>'
 
-            table_html += f"""
-                <tr>
-                    <td style="text-align: center; color: #94a3b8; font-weight: 600;">{item.get('id', '')}</td>
-                    <td>{item.get('torItem', '')}</td>
-                    <td>{item.get('proposalItem', '')}</td>
-                    <td>{status_badge}</td>
-                    <td>{item.get('gapAnalysis', '')}</td>
-                </tr>
-            """
-        table_html += """
-                </tbody>
-            </table>
-        </div>
-        """
+            rows_html += (
+                f'<tr>'
+                f'<td style="text-align: center; color: #94a3b8; font-weight: 600;">{item.get("id", "")}</td>'
+                f'<td>{item.get("torItem", "")}</td>'
+                f'<td>{item.get("proposalItem", "")}</td>'
+                f'<td>{status_badge}</td>'
+                f'<td>{item.get("gapAnalysis", "")}</td>'
+                f'</tr>'
+            )
+
+        table_html = (
+            '<div class="custom-table-container">'
+            '<table class="custom-table">'
+            '<thead><tr>'
+            '<th style="width: 5%;">#</th>'
+            '<th style="width: 30%;">ข้อกำหนด TOR</th>'
+            '<th style="width: 30%;">ข้อเสนอ Proposal</th>'
+            '<th style="width: 12%;">สถานะ</th>'
+            '<th style="width: 23%;">Gap Analysis & ข้อเสนอแนะ</th>'
+            '</tr></thead>'
+            f'<tbody>{rows_html}</tbody>'
+            '</table>'
+            '</div>'
+        )
         st.markdown(table_html, unsafe_allow_html=True)
 
         df = pd.DataFrame(items)
